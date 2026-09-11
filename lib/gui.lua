@@ -7040,6 +7040,7 @@ aA = ac(ah.UICorner, "Squircle-Outline", {
 				Callback = ah.Callback or function() end,
 				Keybind = ah.Keybind == true,
 				KeybindValue = NormalizeKeyCode(ah.KeybindValue),
+				Elements = {},
 				UIElements = {},
 			}
 			ai.ToggleFrame = a.load("C")({
@@ -7091,42 +7092,61 @@ aA = ac(ah.UICorner, "Squircle-Outline", {
 			end
 
 			local KeybindAnchorY = ah.Window.NewElements and 0 or 0.5
+			local SwitchWidth = ah.Window.NewElements and 52 or 40.8
+			local ClusterGap = 8
 
 			al.AnchorPoint = Vector2.new(1, KeybindAnchorY)
 			al.Position = UDim2.new(1, 0, KeybindAnchorY, 0)
 
-			-- === Keybind support ===
+			-- === Right-side cluster (Keybind badge + Sub-module trigger) ===
 			local KeybindContainer = ai.ToggleFrame.UIElements.Container
 			local KeybindBaseOffset = (KeybindContainer and KeybindContainer.Size.X.Offset) or -52
-			local KeybindGap = 8
 			local KeybindBadge
 			local KeybindPicking = false
 			local KeybindBlacklist = { Enum.KeyCode.Escape }
 
+			local SubModuleTrigger
+			local SubModuleTriggerSize = 22
+			local AllowSubModule = ah.ParentType ~= "Toggle"
+
 			local function GetKeybindReserved()
-				if not KeybindBadge then
+				if not (ai.Keybind and KeybindBadge) then
 					return 0
 				end
-				return KeybindBadge.Size.X.Offset + KeybindGap
+				return KeybindBadge.Size.X.Offset + ClusterGap
 			end
 
-			local function UpdateKeybindLayout()
-				local Reserved = ai.Keybind and GetKeybindReserved() or 0
-
-				al.Position = UDim2.new(1, -Reserved, KeybindAnchorY, 0)
-
-				if KeybindContainer then
-					KeybindContainer.Size = UDim2.new(1, KeybindBaseOffset - Reserved, 1, 0)
+			local function GetSubModuleReserved()
+				if not (AllowSubModule and ai.SubModuleEnabled) then
+					return 0
 				end
+				return SubModuleTriggerSize + ClusterGap
+			end
+
+			local function UpdateRightClusterLayout()
+				local KeybindReserved = GetKeybindReserved()
+				local SubModuleReserved = GetSubModuleReserved()
+
+				al.Position = UDim2.new(1, -KeybindReserved, KeybindAnchorY, 0)
 
 				if KeybindBadge then
-					KeybindBadge.Visible = ai.Keybind
+					KeybindBadge.Visible = ai.Keybind == true
+				end
+
+				if SubModuleTrigger then
+					SubModuleTrigger.Visible = ai.SubModuleEnabled == true
+					SubModuleTrigger.Position =
+						UDim2.new(1, -(KeybindReserved + SwitchWidth + ClusterGap), KeybindAnchorY, 0)
+				end
+
+				if KeybindContainer then
+					KeybindContainer.Size = UDim2.new(1, KeybindBaseOffset - KeybindReserved - SubModuleReserved, 1, 0)
 				end
 			end
 
 			local function CreateKeybindBadge()
 				if KeybindBadge then
-					UpdateKeybindLayout()
+					UpdateRightClusterLayout()
 					return
 				end
 
@@ -7144,7 +7164,7 @@ aA = ac(ah.UICorner, "Squircle-Outline", {
 
 				local function ResizeBadge()
 					KeybindBadge.Size = UDim2.new(0, 24 + KeybindBadge.Frame.Frame.TextLabel.TextBounds.X, 0, 30)
-					UpdateKeybindLayout()
+					UpdateRightClusterLayout()
 				end
 
 				ResizeBadge()
@@ -7234,14 +7254,229 @@ aA = ac(ah.UICorner, "Squircle-Outline", {
 				if ai.Keybind then
 					CreateKeybindBadge()
 				else
-					UpdateKeybindLayout()
+					UpdateRightClusterLayout()
 				end
 			end
 
 			if ai.Keybind then
 				CreateKeybindBadge()
 			end
-			-- === End Keybind support ===
+			-- === End Keybind badge ===
+
+			-- === Sub-module category system ===
+			if AllowSubModule then
+				local SubModuleGap = 10
+				local SubModuleBox
+				local SubModuleContent
+				local SubModuleReady = false
+
+				ai.SubModuleEnabled = false
+				ai.SubModuleOpened = ah.SubModuleOpened == true
+
+				local function RepositionSubModuleBox()
+					if SubModuleBox and KeybindContainer then
+						local HeaderHeight = KeybindContainer.AbsoluteSize.Y / ah.UIScale
+						SubModuleBox.Position = UDim2.new(0, 0, 0, HeaderHeight + SubModuleGap)
+					end
+				end
+
+				local function SnapSubModuleBox(Instant)
+					if not SubModuleBox or not SubModuleReady then
+						return
+					end
+
+					local NaturalHeight = SubModuleContent.UIListLayout.AbsoluteContentSize.Y
+						+ SubModuleContent.UIPadding.PaddingTop.Offset
+						+ SubModuleContent.UIPadding.PaddingBottom.Offset
+
+					local TargetHeight = ai.SubModuleOpened and NaturalHeight or 0
+
+					if Instant then
+						SubModuleBox.Size = UDim2.new(1, 0, 0, TargetHeight)
+					else
+						ac(SubModuleBox, ai.SubModuleOpened and 0.33 or 0.26, {
+							Size = UDim2.new(1, 0, 0, TargetHeight),
+						}, Enum.EasingStyle.Quint, Enum.EasingDirection.Out):Play()
+					end
+				end
+
+				local function CreateSubModuleBox()
+					if SubModuleBox then
+						return
+					end
+
+					SubModuleBox = aa.NewRoundFrame(math.max(ah.Window.ElementConfig.UICorner - 1, 0), "Squircle", {
+						Size = UDim2.new(1, 0, 0, 0),
+						ImageColor3 = Color3.fromRGB(235, 235, 235),
+						ImageTransparency = 0,
+						ClipsDescendants = true,
+						Visible = false,
+						Parent = ai.ToggleFrame.UIElements.Main,
+						Name = "SubModuleBox",
+					}, {
+						aa.NewRoundFrame(math.max(ah.Window.ElementConfig.UICorner - 2, 0), "SquircleOutline", {
+							Size = UDim2.new(1, 0, 1, 0),
+							ThemeTag = {
+								ImageColor3 = "SectionBoxBorder",
+							},
+							ImageTransparency = 0.85,
+							Name = "Border",
+						}),
+						ab("Frame", {
+							Size = UDim2.new(1, 0, 0, 0),
+							AutomaticSize = "Y",
+							BackgroundTransparency = 1,
+							Name = "Content",
+						}, {
+							ab("UIPadding", {
+								PaddingTop = UDim.new(0, 10),
+								PaddingLeft = UDim.new(0, 10),
+								PaddingRight = UDim.new(0, 10),
+								PaddingBottom = UDim.new(0, 10),
+							}),
+							ab("UIListLayout", {
+								FillDirection = "Vertical",
+								Padding = UDim.new(0, ah.Tab and ah.Tab.Gap or 6),
+								VerticalAlignment = "Top",
+							}),
+						}),
+					})
+
+					SubModuleContent = SubModuleBox.Content
+
+					RepositionSubModuleBox()
+
+					aa.AddSignal(KeybindContainer:GetPropertyChangedSignal("AbsoluteSize"), RepositionSubModuleBox)
+
+					aa.AddSignal(SubModuleContent.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
+						SnapSubModuleBox(not SubModuleReady)
+					end)
+				end
+
+				local function CreateSubModuleTrigger()
+					if SubModuleTrigger then
+						return
+					end
+
+					SubModuleTrigger = ab("ImageButton", {
+						Size = UDim2.new(0, SubModuleTriggerSize, 0, SubModuleTriggerSize),
+						BackgroundTransparency = 1,
+						AnchorPoint = Vector2.new(1, KeybindAnchorY),
+						Position = UDim2.new(1, 0, KeybindAnchorY, 0),
+						Image = aa.Icon("ellipsis-vertical")[1],
+						ImageRectOffset = aa.Icon("ellipsis-vertical")[2].ImageRectPosition,
+						ImageRectSize = aa.Icon("ellipsis-vertical")[2].ImageRectSize,
+						ThemeTag = {
+							ImageColor3 = "Text",
+						},
+						ImageTransparency = 0.35,
+						ZIndex = 5,
+						Visible = false,
+						Parent = ai.ToggleFrame.UIElements.Main,
+						Name = "SubModuleTrigger",
+					})
+
+					aa.AddSignal(SubModuleTrigger.MouseButton1Click, function()
+						if not aj then
+							return
+						end
+						if ai.SubModuleOpened then
+							ai:CloseSubModule()
+						else
+							ai:OpenSubModule()
+						end
+					end)
+				end
+
+				local function EnableSubModule()
+					if ai.SubModuleEnabled then
+						return
+					end
+					ai.SubModuleEnabled = true
+
+					if SubModuleBox then
+						SubModuleBox.Visible = true
+					end
+
+					CreateSubModuleTrigger()
+					UpdateRightClusterLayout()
+
+					task.defer(function()
+						SubModuleReady = true
+						SnapSubModuleBox(true)
+					end)
+				end
+
+				function ai.SetSubModuleEnabled(an, ao)
+					if ao then
+						EnableSubModule()
+					else
+						ai.SubModuleEnabled = false
+						if SubModuleTrigger then
+							SubModuleTrigger.Visible = false
+						end
+						UpdateRightClusterLayout()
+					end
+				end
+
+				function ai.OpenSubModule(an)
+					if not ai.SubModuleEnabled then
+						return
+					end
+					ai.SubModuleOpened = true
+					SnapSubModuleBox(false)
+				end
+
+				function ai.CloseSubModule(an)
+					if not ai.SubModuleEnabled then
+						return
+					end
+					ai.SubModuleOpened = false
+					SnapSubModuleBox(false)
+				end
+
+				function ai.IsSubModuleOpened(an)
+					return ai.SubModuleOpened == true
+				end
+
+				CreateSubModuleBox()
+
+				aa.AddSignal(ai.ToggleFrame.UIElements.Main.InputBegan, function(SubModuleInput)
+					if not aj or not ai.SubModuleEnabled then
+						return
+					end
+					if SubModuleInput.UserInputType == Enum.UserInputType.MouseButton2 then
+						if ai.SubModuleOpened then
+							ai:CloseSubModule()
+						else
+							ai:OpenSubModule()
+						end
+					end
+				end)
+
+				local AllowedSubElements = {
+					Button = ah.ElementsModule.Elements.Button,
+					Toggle = ah.ElementsModule.Elements.Toggle,
+					Slider = ah.ElementsModule.Elements.Slider,
+					Dropdown = ah.ElementsModule.Elements.Dropdown,
+					Colorpicker = ah.ElementsModule.Elements.Colorpicker,
+				}
+
+				ah.ElementsModule.Load(
+					ai,
+					SubModuleContent,
+					AllowedSubElements,
+					ah.Window,
+					ah.WindUI,
+					function()
+						EnableSubModule()
+					end,
+					ah.ElementsModule,
+					ah.UIScale,
+					ah.Tab
+				)
+			end
+			-- === End Sub-module category system ===
 
 			function ai.Set(an, ao, ap, aq)
 				if aj then
