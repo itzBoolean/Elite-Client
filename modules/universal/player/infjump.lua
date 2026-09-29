@@ -2,17 +2,30 @@ local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
-local enabled = false
-local connection
+local state = getgenv().InfiniteJumpState
+
+if not state then
+    state = {
+        Enabled = false,
+        Connection = nil
+    }
+
+    getgenv().InfiniteJumpState = state
+end
 
 local InfJump = {}
 
 function InfJump.Enable()
-    if enabled then return end
-    enabled = true
+    if state.Enabled then
+        return
+    end
 
-    connection = UserInputService.JumpRequest:Connect(function()
-        if not enabled then return end
+    state.Enabled = true
+
+    state.Connection = UserInputService.JumpRequest:Connect(function()
+        if not state.Enabled then
+            return
+        end
 
         local character = player.Character
         local humanoid = character and character:FindFirstChildOfClass("Humanoid")
@@ -24,11 +37,11 @@ function InfJump.Enable()
 end
 
 function InfJump.Disable()
-    enabled = false
+    state.Enabled = false
 
-    if connection then
-        connection:Disconnect()
-        connection = nil
+    if state.Connection then
+        state.Connection:Disconnect()
+        state.Connection = nil
     end
 end
 
