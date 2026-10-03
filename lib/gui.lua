@@ -6458,6 +6458,9 @@ aA = ac(ah.UICorner, "Squircle-Outline", {
 				Locked = ae.Locked or false,
 				LockedTitle = ae.LockedTitle,
 				Callback = ae.Callback or function() end,
+				Flag = ae.Flag,
+				IncludeKeyBind = ae.IncludeKeyBind or false,
+				KeyBindValue = ae.KeyBindValue,
 				UIElements = {},
 			}
 
@@ -6505,14 +6508,52 @@ aA = ac(ah.UICorner, "Squircle-Outline", {
 
 			af.ButtonFrame:Colorize(af.UIElements.ButtonIcon.ImageLabel, "ImageColor3")
 
+			if af.IncludeKeyBind then
+				af.UIElements.Keybind = a.load("af").New({
+					Parent = af.UIElements.ButtonIcon.Parent,
+					Value = af.KeyBindValue,
+					Window = ae.Window,
+					OnPress = function()
+						if ag then
+							task.spawn(function()
+								aa.SafeCallback(af.Callback)
+							end)
+						end
+					end,
+					OnResize = function(ah)
+						if af.Justify == "Between" then
+							af.UIElements.ButtonIcon.Position = UDim2.new(1, -(ah + 8), 0.5, 0)
+						end
+					end,
+				})
+
+				if af.Justify ~= "Between" then
+					af.UIElements.Keybind.Instance.LayoutOrder = 999999
+				end
+
+				if af.Flag and typeof(af.Flag) == "string" and ae.SaveKeyBind ~= false then
+					a.load("af").RegisterFlag(
+						ae.Window,
+						ae.KeyBindFlag or (af.Flag .. "_Keybind"),
+						af.UIElements.Keybind
+					)
+				end
+			end
+
 			function af.Lock(ah)
 				af.Locked = true
 				ag = false
+				if af.UIElements.Keybind then
+					af.UIElements.Keybind:Lock()
+				end
 				return af.ButtonFrame:Lock(af.LockedTitle)
 			end
 			function af.Unlock(ah)
 				af.Locked = false
 				ag = true
+				if af.UIElements.Keybind then
+					af.UIElements.Keybind:Unlock()
+				end
 				return af.ButtonFrame:Unlock()
 			end
 
@@ -7008,21 +7049,6 @@ aA = ac(ah.UICorner, "Squircle-Outline", {
 
 		local ad = a.load("F").New
 		local ae = a.load("G").New
-		local NewKeybindBadge = a.load("w").New
-
-		local UIS = (cloneref or clonereference or function(KeybindService)
-			return KeybindService
-		end)(game:GetService("UserInputService"))
-
-		local function NormalizeKeyCode(KeyValue)
-			if typeof(KeyValue) == "EnumItem" then
-				return KeyValue.Name
-			elseif type(KeyValue) == "string" and KeyValue ~= "" then
-				return KeyValue
-			else
-				return "F"
-			end
-		end
 
 		local af = {}
 
@@ -7038,9 +7064,9 @@ aA = ac(ah.UICorner, "Squircle-Outline", {
 				IconSize = ah.IconSize or 23,
 				Type = ah.Type or "Toggle",
 				Callback = ah.Callback or function() end,
-				Keybind = ah.Keybind == true,
-				KeybindValue = NormalizeKeyCode(ah.KeybindValue),
-				Elements = {},
+				Flag = ah.Flag,
+				IncludeKeyBind = ah.IncludeKeyBind or false,
+				KeyBindValue = ah.KeyBindValue,
 				UIElements = {},
 			}
 			ai.ToggleFrame = a.load("C")({
@@ -7059,6 +7085,7 @@ aA = ac(ah.UICorner, "Squircle-Outline", {
 			})
 
 			local aj = true
+			local akKeybindObject
 
 			if ai.Value == nil then
 				ai.Value = false
@@ -7067,11 +7094,17 @@ aA = ac(ah.UICorner, "Squircle-Outline", {
 			function ai.Lock(ak)
 				ai.Locked = true
 				aj = false
+				if akKeybindObject then
+					akKeybindObject:Lock()
+				end
 				return ai.ToggleFrame:Lock(ai.LockedTitle)
 			end
 			function ai.Unlock(ak)
 				ai.Locked = false
 				aj = true
+				if akKeybindObject then
+					akKeybindObject:Unlock()
+				end
 				return ai.ToggleFrame:Unlock()
 			end
 
@@ -7091,397 +7124,44 @@ aA = ac(ah.UICorner, "Squircle-Outline", {
 				error("Unknown Toggle Type: " .. tostring(ai.Type))
 			end
 
-			local KeybindAnchorY = ah.Window.NewElements and 0 or 0.5
-			local SwitchWidth = ah.Window.NewElements and 52 or 40.8
-			local ClusterGap = 8
+			al.AnchorPoint = Vector2.new(1, ah.Window.NewElements and 0 or 0.5)
+			al.Position = UDim2.new(1, 0, ah.Window.NewElements and 0 or 0.5, 0)
 
-			al.AnchorPoint = Vector2.new(1, KeybindAnchorY)
-			al.Position = UDim2.new(1, 0, KeybindAnchorY, 0)
-
-			-- === Right-side cluster (Keybind badge + Sub-module trigger) ===
-			local KeybindContainer = ai.ToggleFrame.UIElements.Container
-			local KeybindBaseOffset = (KeybindContainer and KeybindContainer.Size.X.Offset) or -52
-			local KeybindBadge
-			local KeybindPicking = false
-			local KeybindBlacklist = { Enum.KeyCode.Escape }
-
-			local SubModuleTrigger
-			local SubModuleTriggerSize = 22
-			local AllowSubModule = ah.ParentType ~= "Toggle"
-
-			local function GetKeybindReserved()
-				if not (ai.Keybind and KeybindBadge) then
-					return 0
-				end
-				return KeybindBadge.Size.X.Offset + ClusterGap
-			end
-
-			local function GetSubModuleReserved()
-				if not (AllowSubModule and ai.SubModuleEnabled) then
-					return 0
-				end
-				return SubModuleTriggerSize + ClusterGap
-			end
-
-			local function UpdateRightClusterLayout()
-				local KeybindReserved = GetKeybindReserved()
-				local SubModuleReserved = GetSubModuleReserved()
-
-				al.Position = UDim2.new(1, -KeybindReserved, KeybindAnchorY, 0)
-
-				if KeybindBadge then
-					KeybindBadge.Visible = ai.Keybind == true
+			if ai.IncludeKeyBind then
+				local alKeybindOffset = 0
+				local function UpdateSwitchPosition()
+					al.Position = UDim2.new(1, -alKeybindOffset, ah.Window.NewElements and 0 or 0.5, 0)
 				end
 
-				if SubModuleTrigger then
-					SubModuleTrigger.Visible = ai.SubModuleEnabled == true
-					SubModuleTrigger.Position =
-						UDim2.new(1, -(KeybindReserved + SwitchWidth + ClusterGap), KeybindAnchorY, 0)
-				end
-
-				if KeybindContainer then
-					KeybindContainer.Size = UDim2.new(1, KeybindBaseOffset - KeybindReserved - SubModuleReserved, 1, 0)
-				end
-			end
-
-			local function CreateKeybindBadge()
-				if KeybindBadge then
-					UpdateRightClusterLayout()
-					return
-				end
-
-				KeybindBadge = NewKeybindBadge(
-					ai.KeybindValue,
-					nil,
-					ai.ToggleFrame.UIElements.Main,
-					nil,
-					ah.Window.NewElements and 12 or 10
-				)
-
-				KeybindBadge.AnchorPoint = Vector2.new(1, KeybindAnchorY)
-				KeybindBadge.Position = UDim2.new(1, 0, KeybindAnchorY, 0)
-				KeybindBadge.ZIndex = 5
-
-				local function ResizeBadge()
-					KeybindBadge.Size = UDim2.new(0, 24 + KeybindBadge.Frame.Frame.TextLabel.TextBounds.X, 0, 30)
-					UpdateRightClusterLayout()
-				end
-
-				ResizeBadge()
-
-				aa.AddSignal(KeybindBadge.Frame.Frame.TextLabel:GetPropertyChangedSignal("TextBounds"), ResizeBadge)
-
-				aa.AddSignal(KeybindBadge.MouseButton1Click, function()
-					if not aj or not ai.Keybind or KeybindPicking then
-						return
-					end
-
-					KeybindPicking = true
-					KeybindBadge.Frame.Frame.TextLabel.Text = "..."
-
-					local BeganConnection
-					local EndedConnection
-
-					BeganConnection = UIS.InputBegan:Connect(function(KeybindInput)
-						local NewKey
-
-						if KeybindInput.UserInputType == Enum.UserInputType.Keyboard then
-							if table.find(KeybindBlacklist, KeybindInput.KeyCode) then
-								return
-							end
-							NewKey = KeybindInput.KeyCode.Name
-						elseif KeybindInput.UserInputType == Enum.UserInputType.MouseButton1 then
-							NewKey = "MouseLeftButton"
-						elseif KeybindInput.UserInputType == Enum.UserInputType.MouseButton2 then
-							NewKey = "MouseRightButton"
+				akKeybindObject = a.load("af").New({
+					Parent = ai.ToggleFrame.UIElements.Main,
+					Value = ai.KeyBindValue,
+					Window = ah.Window,
+					OnPress = function()
+						if aj then
+							ai:Set(not ai.Value, nil, ah.Window.NewElements)
 						end
-
-						if not NewKey then
-							return
-						end
-
-						if EndedConnection then
-							EndedConnection:Disconnect()
-						end
-
-						EndedConnection = UIS.InputEnded:Connect(function(KeybindInputEnded)
-							local Matches = (
-								KeybindInputEnded.UserInputType == Enum.UserInputType.Keyboard
-								and KeybindInputEnded.KeyCode.Name == NewKey
-							) or (
-								NewKey == "MouseLeftButton"
-								and KeybindInputEnded.UserInputType == Enum.UserInputType.MouseButton1
-							) or (
-								NewKey == "MouseRightButton"
-								and KeybindInputEnded.UserInputType == Enum.UserInputType.MouseButton2
-							)
-
-							if Matches then
-								KeybindPicking = false
-								ai.KeybindValue = NewKey
-								KeybindBadge.Frame.Frame.TextLabel.Text = NewKey
-
-								if BeganConnection then
-									BeganConnection:Disconnect()
-								end
-								EndedConnection:Disconnect()
-							end
-						end)
-					end)
-				end)
-			end
-
-			function ai.IsKeybindSet(an)
-				return ai.Keybind == true
-			end
-
-			function ai.GetKeyBindValue(an)
-				return ai.KeybindValue
-			end
-
-			function ai.SetKeyBindValue(an, ao)
-				local NewValue = NormalizeKeyCode(ao)
-				ai.KeybindValue = NewValue
-
-				if KeybindBadge then
-					KeybindBadge.Frame.Frame.TextLabel.Text = NewValue
-				end
-			end
-
-			function ai.SetKeybindEnabled(an, ao)
-				ai.Keybind = ao == true
-
-				if ai.Keybind then
-					CreateKeybindBadge()
-				else
-					UpdateRightClusterLayout()
-				end
-			end
-
-			if ai.Keybind then
-				CreateKeybindBadge()
-			end
-			-- === End Keybind badge ===
-
-			-- === Sub-module category system ===
-			if AllowSubModule then
-				local SubModuleGap = 10
-				local SubModuleBox
-				local SubModuleContent
-				local SubModuleReady = false
-
-				ai.SubModuleEnabled = false
-				ai.SubModuleOpened = ah.SubModuleOpened == true
-
-				local function RepositionSubModuleBox()
-					if SubModuleBox and KeybindContainer then
-						local HeaderHeight = KeybindContainer.AbsoluteSize.Y / ah.UIScale
-						SubModuleBox.Position = UDim2.new(0, 0, 0, HeaderHeight + SubModuleGap)
-					end
-				end
-
-				local function SnapSubModuleBox(Instant)
-					if not SubModuleBox or not SubModuleReady then
-						return
-					end
-
-					local NaturalHeight = SubModuleContent.UIListLayout.AbsoluteContentSize.Y
-						+ SubModuleContent.UIPadding.PaddingTop.Offset
-						+ SubModuleContent.UIPadding.PaddingBottom.Offset
-
-					local TargetHeight = ai.SubModuleOpened and NaturalHeight or 0
-
-					if Instant then
-						SubModuleBox.Size = UDim2.new(1, 0, 0, TargetHeight)
-					else
-						ac(SubModuleBox, ai.SubModuleOpened and 0.33 or 0.26, {
-							Size = UDim2.new(1, 0, 0, TargetHeight),
-						}, Enum.EasingStyle.Quint, Enum.EasingDirection.Out):Play()
-					end
-				end
-
-				local function CreateSubModuleBox()
-					if SubModuleBox then
-						return
-					end
-
-					SubModuleBox = aa.NewRoundFrame(math.max(ah.Window.ElementConfig.UICorner - 1, 0), "Squircle", {
-						Size = UDim2.new(1, 0, 0, 0),
-						ImageColor3 = Color3.fromRGB(235, 235, 235),
-						ImageTransparency = 0,
-						ClipsDescendants = true,
-						Visible = false,
-						Parent = ai.ToggleFrame.UIElements.Main,
-						Name = "SubModuleBox",
-					}, {
-						aa.NewRoundFrame(math.max(ah.Window.ElementConfig.UICorner - 2, 0), "SquircleOutline", {
-							Size = UDim2.new(1, 0, 1, 0),
-							ThemeTag = {
-								ImageColor3 = "SectionBoxBorder",
-							},
-							ImageTransparency = 0.85,
-							Name = "Border",
-						}),
-						ab("Frame", {
-							Size = UDim2.new(1, 0, 0, 0),
-							AutomaticSize = "Y",
-							BackgroundTransparency = 1,
-							Name = "Content",
-						}, {
-							ab("UIPadding", {
-								PaddingTop = UDim.new(0, 10),
-								PaddingLeft = UDim.new(0, 10),
-								PaddingRight = UDim.new(0, 10),
-								PaddingBottom = UDim.new(0, 10),
-							}),
-							ab("UIListLayout", {
-								FillDirection = "Vertical",
-								Padding = UDim.new(0, ah.Tab and ah.Tab.Gap or 6),
-								VerticalAlignment = "Top",
-							}),
-						}),
-					})
-
-					SubModuleContent = SubModuleBox.Content
-
-					RepositionSubModuleBox()
-
-					aa.AddSignal(KeybindContainer:GetPropertyChangedSignal("AbsoluteSize"), RepositionSubModuleBox)
-
-					aa.AddSignal(SubModuleContent.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
-						SnapSubModuleBox(not SubModuleReady)
-					end)
-				end
-
-				local function CreateSubModuleTrigger()
-					if SubModuleTrigger then
-						return
-					end
-
-					SubModuleTrigger = ab("ImageButton", {
-						Size = UDim2.new(0, SubModuleTriggerSize, 0, SubModuleTriggerSize),
-						BackgroundTransparency = 1,
-						AnchorPoint = Vector2.new(1, KeybindAnchorY),
-						Position = UDim2.new(1, 0, KeybindAnchorY, 0),
-						Image = aa.Icon("ellipsis-vertical")[1],
-						ImageRectOffset = aa.Icon("ellipsis-vertical")[2].ImageRectPosition,
-						ImageRectSize = aa.Icon("ellipsis-vertical")[2].ImageRectSize,
-						ThemeTag = {
-							ImageColor3 = "Text",
-						},
-						ImageTransparency = 0.35,
-						ZIndex = 5,
-						Visible = false,
-						Parent = ai.ToggleFrame.UIElements.Main,
-						Name = "SubModuleTrigger",
-					})
-
-					aa.AddSignal(SubModuleTrigger.MouseButton1Click, function()
-						if not aj then
-							return
-						end
-						if ai.SubModuleOpened then
-							ai:CloseSubModule()
-						else
-							ai:OpenSubModule()
-						end
-					end)
-				end
-
-				local function EnableSubModule()
-					if ai.SubModuleEnabled then
-						return
-					end
-					ai.SubModuleEnabled = true
-
-					if SubModuleBox then
-						SubModuleBox.Visible = true
-					end
-
-					CreateSubModuleTrigger()
-					UpdateRightClusterLayout()
-
-					task.defer(function()
-						SubModuleReady = true
-						SnapSubModuleBox(true)
-					end)
-				end
-
-				function ai.SetSubModuleEnabled(an, ao)
-					if ao then
-						EnableSubModule()
-					else
-						ai.SubModuleEnabled = false
-						if SubModuleTrigger then
-							SubModuleTrigger.Visible = false
-						end
-						UpdateRightClusterLayout()
-					end
-				end
-
-				function ai.OpenSubModule(an)
-					if not ai.SubModuleEnabled then
-						return
-					end
-					ai.SubModuleOpened = true
-					SnapSubModuleBox(false)
-				end
-
-				function ai.CloseSubModule(an)
-					if not ai.SubModuleEnabled then
-						return
-					end
-					ai.SubModuleOpened = false
-					SnapSubModuleBox(false)
-				end
-
-				function ai.IsSubModuleOpened(an)
-					return ai.SubModuleOpened == true
-				end
-
-				CreateSubModuleBox()
-
-				if ah.SubModuleEnabled == true then
-					EnableSubModule()
-				end
-
-				aa.AddSignal(ai.ToggleFrame.UIElements.Main.InputBegan, function(SubModuleInput)
-					if not aj or not ai.SubModuleEnabled then
-						return
-					end
-					if SubModuleInput.UserInputType == Enum.UserInputType.MouseButton2 then
-						if ai.SubModuleOpened then
-							ai:CloseSubModule()
-						else
-							ai:OpenSubModule()
-						end
-					end
-				end)
-
-				local AllowedSubElements = {
-					Button = ah.ElementsModule.Elements.Button,
-					Toggle = ah.ElementsModule.Elements.Toggle,
-					Slider = ah.ElementsModule.Elements.Slider,
-					Dropdown = ah.ElementsModule.Elements.Dropdown,
-					Colorpicker = ah.ElementsModule.Elements.Colorpicker,
-					Input = ah.ElementsModule.Elements.Input,
-				}
-
-				ah.ElementsModule.Load(
-					ai,
-					SubModuleContent,
-					AllowedSubElements,
-					ah.Window,
-					ah.WindUI,
-					function()
-						EnableSubModule()
 					end,
-					ah.ElementsModule,
-					ah.UIScale,
-					ah.Tab
-				)
+					OnResize = function(ao)
+						alKeybindOffset = ao + 8
+						UpdateSwitchPosition()
+					end,
+				})
+
+				if ai.Locked then
+					akKeybindObject:Lock()
+				end
+
+				if ai.Flag and typeof(ai.Flag) == "string" and ah.SaveKeyBind ~= false then
+					a.load("af").RegisterFlag(
+						ah.Window,
+						ah.KeyBindFlag or (ai.Flag .. "_Keybind"),
+						akKeybindObject
+					)
+				end
+
+				ai.UIElements.Keybind = akKeybindObject
 			end
-			-- === End Sub-module category system ===
 
 			function ai.Set(an, ao, ap, aq)
 				if aj then
@@ -7525,26 +7205,6 @@ aA = ac(ah.UICorner, "Squircle-Outline", {
 					end)
 				end
 			end
-
-			aa.AddSignal(UIS.InputBegan, function(KeybindTrigger, KeybindGameProcessed)
-				if KeybindGameProcessed then
-					return
-				end
-				if not ai.Keybind or KeybindPicking or not aj then
-					return
-				end
-				if UIS:GetFocusedTextBox() then
-					return
-				end
-
-				if
-					(KeybindTrigger.UserInputType == Enum.UserInputType.Keyboard and KeybindTrigger.KeyCode.Name == ai.KeybindValue)
-					or (KeybindTrigger.UserInputType == Enum.UserInputType.MouseButton1 and ai.KeybindValue == "MouseLeftButton")
-					or (KeybindTrigger.UserInputType == Enum.UserInputType.MouseButton2 and ai.KeybindValue == "MouseRightButton")
-				then
-					ai:Set(not ai.Value, nil, ah.Window.NewElements)
-				end
-			end)
 
 			return ai.__type, ai
 		end
@@ -8430,6 +8090,203 @@ aA = ac(ah.UICorner, "Squircle-Outline", {
 			end)
 
 			return ak.__type, ak
+		end
+
+		return ag
+	end
+
+	-- Shared helper: attaches a small inline keybind badge + key-picker to an
+	-- existing element row (used by Toggle and Button to implement
+	-- IncludeKeyBind / KeyBindValue). Not exposed as a public Tab element.
+	function a.af()
+		local aa = (cloneref or clonereference or function(aa)
+			return aa
+		end)
+
+		local ab = aa(game:GetService("UserInputService"))
+
+		local ac = a.load("d")
+		local ad = ac.New
+		local ae = a.load("w").New
+
+		local function NormalizeKeyCode(af)
+			if typeof(af) == "EnumItem" then
+				return af.Name
+			elseif type(af) == "string" then
+				return af
+			else
+				return "F"
+			end
+		end
+
+		local ag = {}
+
+		-- Registers `flag` on `window`'s current/pending config, same pattern
+		-- the library already uses for normal element Flags.
+		function ag.RegisterFlag(af, ah, ai)
+			if not (ah and typeof(ah) == "string") then
+				return
+			end
+
+			if af.CurrentConfig then
+				af.CurrentConfig:Register(ah, ai)
+
+				if af.PendingConfigData and af.PendingConfigData[ah] then
+					local aj = af.PendingConfigData[ah]
+					local ak = af.ConfigManager
+
+					if ak and ak.Parser[aj.__type] then
+						task.defer(function()
+							local al, am = pcall(function()
+								ak.Parser[aj.__type].Load(ai, aj)
+							end)
+
+							if al then
+								af.PendingConfigData[ah] = nil
+							else
+								warn("[ WindUI ] Failed to apply pending config for '" .. ah .. "': " .. tostring(am))
+							end
+						end)
+					end
+				end
+			else
+				af.PendingFlags = af.PendingFlags or {}
+				af.PendingFlags[ah] = ai
+			end
+		end
+
+		-- af: {
+		--   Parent = Instance to drop the badge into (the element's right-aligned area)
+		--   Value = default KeyBindValue (string name or Enum.KeyCode)
+		--   Window = the element's Window table
+		--   Blacklist = {} optional list of disallowed key names
+		--   CanChange = bool, default true
+		--   OnPress = function(keyName) end -- fired while the bound key/button is active
+		--   OnResize = function(width) end -- fired once immediately and again on every resize
+		-- }
+		function ag.New(af)
+			local ah = {
+				__type = "Keybind",
+				Value = NormalizeKeyCode(af.Value) or "F",
+				CanChange = af.CanChange ~= false,
+				Picking = false,
+			}
+
+			local ai = {}
+			for aj, ak in next, (af.Blacklist or {}) do
+				table.insert(ai, Enum.KeyCode[NormalizeKeyCode(ak)])
+			end
+			table.insert(ai, Enum.KeyCode[NormalizeKeyCode("Escape")])
+
+			local aj = ae(ah.Value, nil, af.Parent, false, af.Window.NewElements and 12 or 10)
+			aj.AnchorPoint = Vector2.new(1, 0.5)
+			aj.Position = UDim2.new(1, 0, 0.5, 0)
+			aj.ZIndex = 2
+
+			local function Resize()
+				aj.Size = UDim2.new(0, 24 + aj.Frame.Frame.TextLabel.TextBounds.X, 0, 42)
+				if af.OnResize then
+					af.OnResize(aj.Size.X.Offset)
+				end
+			end
+			Resize()
+
+			ad("UIScale", {
+				Parent = aj,
+				Scale = 0.85,
+			})
+
+			ac.AddSignal(aj.Frame.Frame.TextLabel:GetPropertyChangedSignal("TextBounds"), Resize)
+
+			ah.Instance = aj
+
+			local ak = true
+
+			function ah.Lock(al)
+				ak = false
+			end
+			function ah.Unlock(al)
+				ak = true
+			end
+
+			function ah.Set(al, am)
+				local an = NormalizeKeyCode(am)
+				ah.Value = an
+				aj.Frame.Frame.TextLabel.Text = an
+			end
+
+			local al
+
+			ac.AddSignal(aj.MouseButton1Click, function()
+				if ak and ah.CanChange then
+					ah.Picking = true
+					aj.Frame.Frame.TextLabel.Text = "..."
+
+					local am
+					am = ab.InputBegan:Connect(function(an)
+						local ao
+
+						if an.UserInputType == Enum.UserInputType.Keyboard then
+							if table.find(ai, an.KeyCode) then
+								ao = nil
+								return
+							else
+								ao = an.KeyCode.Name
+							end
+						elseif an.UserInputType == Enum.UserInputType.MouseButton1 and not table.find(ai, "MouseLeft") then
+							ao = "MouseLeft"
+						elseif an.UserInputType == Enum.UserInputType.MouseButton2 and not table.find(ai, "MouseRight") then
+							ao = "MouseRight"
+						end
+
+						if al then
+							al:Disconnect()
+						end
+
+						al = ab.InputEnded:Connect(function(ap)
+							if
+								ao
+								and (
+									ap.KeyCode.Name == ao
+									or ao == "MouseLeft" and ap.UserInputType == Enum.UserInputType.MouseButton1
+									or ao == "MouseRight" and ap.UserInputType == Enum.UserInputType.MouseButton2
+								)
+							then
+								ah.Picking = false
+								aj.Frame.Frame.TextLabel.Text = ao
+								ah.Value = ao
+
+								am:Disconnect()
+								al:Disconnect()
+							end
+						end)
+					end)
+				end
+			end)
+
+			ac.AddSignal(ab.InputBegan, function(am, an)
+				if ab:GetFocusedTextBox() then
+					return
+				end
+				if not ak then
+					return
+				end
+				if ah.Picking then
+					return
+				end
+
+				if am.UserInputType == Enum.UserInputType.Keyboard then
+					if am.KeyCode.Name == ah.Value then
+						ac.SafeCallback(af.OnPress, am.KeyCode.Name)
+					end
+				elseif am.UserInputType == Enum.UserInputType.MouseButton1 and ah.Value == "MouseLeft" then
+					ac.SafeCallback(af.OnPress, "MouseLeft")
+				elseif am.UserInputType == Enum.UserInputType.MouseButton2 and ah.Value == "MouseRight" then
+					ac.SafeCallback(af.OnPress, "MouseRight")
+				end
+			end)
+
+			return ah
 		end
 
 		return ag
@@ -11653,7 +11510,7 @@ au, av = ar:New(at)
 							end
 						end
 
-						ak.AllElements[at.GlobalIndex] = av
+						ak.AllElements[at.Index] = av
 						aa.Elements[at.Index] = av
 						if ap then
 							ap.Elements[at.Index] = av
