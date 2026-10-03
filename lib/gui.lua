@@ -7441,6 +7441,10 @@ aA = ac(ah.UICorner, "Squircle-Outline", {
 
 				CreateSubModuleBox()
 
+				if ah.SubModuleEnabled == true then
+					EnableSubModule()
+				end
+
 				aa.AddSignal(ai.ToggleFrame.UIElements.Main.InputBegan, function(SubModuleInput)
 					if not aj or not ai.SubModuleEnabled then
 						return
@@ -7460,6 +7464,7 @@ aA = ac(ah.UICorner, "Squircle-Outline", {
 					Slider = ah.ElementsModule.Elements.Slider,
 					Dropdown = ah.ElementsModule.Elements.Dropdown,
 					Colorpicker = ah.ElementsModule.Elements.Colorpicker,
+					Input = ah.ElementsModule.Elements.Input,
 				}
 
 				ah.ElementsModule.Load(
@@ -11648,7 +11653,7 @@ au, av = ar:New(at)
 							end
 						end
 
-						ak.AllElements[at.Index] = av
+						ak.AllElements[at.GlobalIndex] = av
 						aa.Elements[at.Index] = av
 						if ap then
 							ap.Elements[at.Index] = av
