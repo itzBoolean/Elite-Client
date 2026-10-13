@@ -7216,6 +7216,17 @@ aA = ac(ah.UICorner, "Squircle-Outline", {
 				ai.UIElements.Keybind = akKeybindObject
 			end
 
+			-- Returns the toggle's current keybind value as a string (e.g. "F", "MouseLeft"), reflecting
+			-- rebinds made by the user and :Set() calls. Returns "" when the keybind is enabled but has no
+			-- key assigned, and nil when the toggle has no keybind (IncludeKeyBind is false).
+			function ai.GetKeyBindValue(av)
+				local akObject = ai.UIElements.Keybind
+				if not akObject then
+					return nil
+				end
+				return akObject.Value
+			end
+
 			if ai.SubModules then
 				local smOk, smErr = pcall(function()
 				-- Sub module system: a collapsible, containerized list of child elements shown as its own
