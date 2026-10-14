@@ -7115,12 +7115,19 @@ aA = ac(ah.UICorner, "Squircle-Outline", {
 
 			local ak = ai.Value
 
+			-- Who changed the value: "UI" (clicked/dragged), "Keybind" (key pressed) or "Script" (:Set(), config
+			-- load, anything else). Passed to Callback as its second argument: Callback = function(state, source)
+			ai.LastSource = "Script"
+			local function akFireCallback(akValue)
+				return ai.Callback(akValue, ai.LastSource or "Script")
+			end
+
 			local al, am
 			if ai.Type == "Toggle" then
 				al, am =
-					ad(ak, ai.Icon, ai.IconSize, ai.ToggleFrame.UIElements.Main, ai.Callback, ah.Window.NewElements, ah)
+					ad(ak, ai.Icon, ai.IconSize, ai.ToggleFrame.UIElements.Main, akFireCallback, ah.Window.NewElements, ah)
 			elseif ai.Type == "Checkbox" then
-				al, am = ae(ak, ai.Icon, ai.IconSize, ai.ToggleFrame.UIElements.Main, ai.Callback, ah)
+				al, am = ae(ak, ai.Icon, ai.IconSize, ai.ToggleFrame.UIElements.Main, akFireCallback, ah)
 			else
 				error("Unknown Toggle Type: " .. tostring(ai.Type))
 			end
@@ -7192,7 +7199,7 @@ aA = ac(ah.UICorner, "Squircle-Outline", {
 					Window = ah.Window,
 					OnPress = function()
 						if aj then
-							ai:Set(not ai.Value, nil, ah.Window.NewElements)
+							ai:Set(not ai.Value, nil, ah.Window.NewElements, "Keybind")
 						end
 					end,
 					OnResize = function(ao)
@@ -7557,8 +7564,9 @@ aA = ac(ah.UICorner, "Squircle-Outline", {
 
 			akUpdateControlPositions()
 
-			function ai.Set(an, ao, ap, aq)
+			function ai.Set(an, ao, ap, aq, ar)
 				if aj then
+					ai.LastSource = ar or "Script"
 					am:Set(ao, ap, aq or false)
 					ak = ao
 					ai.Value = ao
@@ -7584,6 +7592,7 @@ aA = ac(ah.UICorner, "Squircle-Outline", {
 							end
 
 							ah.WindUI.CurrentInput = an
+							ai.LastSource = "UI"
 							am:Animate(ao, ai)
 						end
 					end)
@@ -7591,11 +7600,11 @@ aA = ac(ah.UICorner, "Squircle-Outline", {
 			else
 				if ai.Type == "Toggle" then
 					aa.AddSignal(al.ToggleFrame.Hitbox.MouseButton1Click, function()
-						ai:Set(not ai.Value, nil, ah.Window.NewElements)
+						ai:Set(not ai.Value, nil, ah.Window.NewElements, "UI")
 					end)
 				elseif ai.Type == "Checkbox" then
 					aa.AddSignal(al.MouseButton1Click, function()
-						ai:Set(not ai.Value, nil, ah.Window.NewElements)
+						ai:Set(not ai.Value, nil, ah.Window.NewElements, "UI")
 					end)
 				end
 			end
